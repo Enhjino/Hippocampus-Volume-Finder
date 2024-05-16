@@ -1,0 +1,1223 @@
+classdef HVF < matlab.apps.AppBase
+
+    % Properties that correspond to app components
+    properties (Access = public)
+        UIFigure                        matlab.ui.Figure
+        MLDEditField                    matlab.ui.control.NumericEditField
+        MLDLabel                        matlab.ui.control.Label
+        MRIseriesInformationPanel       matlab.ui.container.Panel
+        ViewEditField                   matlab.ui.control.EditField
+        ViewEditFieldLabel              matlab.ui.control.Label
+        PixalspacingYEditField          matlab.ui.control.NumericEditField
+        PixalspacingYEditFieldLabel     matlab.ui.control.Label
+        PixalspacingXEditField          matlab.ui.control.NumericEditField
+        PixalspacingLabel               matlab.ui.control.Label
+        SlicethicnessEditField          matlab.ui.control.NumericEditField
+        SlicethicnessEditField_2Label   matlab.ui.control.Label
+        NumberofcolsEditField           matlab.ui.control.NumericEditField
+        NumberofcolsEditField_2Label    matlab.ui.control.Label
+        NumberofrowsEditField           matlab.ui.control.NumericEditField
+        NumberofrowsEditFieldLabel      matlab.ui.control.Label
+        NumberofslicesEditField         matlab.ui.control.NumericEditField
+        NumberofslicesEditField_2Label  matlab.ui.control.Label
+        PatientInformationPanel         matlab.ui.container.Panel
+        NameEditField                   matlab.ui.control.EditField
+        NameLabel                       matlab.ui.control.Label
+        SexEditField                    matlab.ui.control.EditField
+        SexLabel                        matlab.ui.control.Label
+        AgeEditField                    matlab.ui.control.EditField
+        AgeLabel                        matlab.ui.control.Label
+        IDEditField                     matlab.ui.control.EditField
+        IDLabel                         matlab.ui.control.Label
+        TabGroup                        matlab.ui.container.TabGroup
+        ImagePreprocessingTab           matlab.ui.container.Tab
+        NormalizationCheckBox           matlab.ui.control.CheckBox
+        GaussianFilterCheckBox          matlab.ui.control.CheckBox
+        ResampleLD256pxCheckBox         matlab.ui.control.CheckBox
+        HistogramEqualizationCheckBox   matlab.ui.control.CheckBox
+        ContrastStretchCheckBox         matlab.ui.control.CheckBox
+        MedianFilterCheckBox            matlab.ui.control.CheckBox
+        Next10Button                    matlab.ui.control.Button
+        NextButton                      matlab.ui.control.Button
+        Previous10Button                matlab.ui.control.Button
+        PreviousButton                  matlab.ui.control.Button
+        UIAxes                          matlab.ui.control.UIAxes
+        ImagesegmentationTab            matlab.ui.container.Tab
+        CreateNewFolderButton           matlab.ui.control.Button
+        SegmentButton                   matlab.ui.control.Button
+        Next10Button_2                  matlab.ui.control.Button
+        NextButton_2                    matlab.ui.control.Button
+        PreviousButton_2                matlab.ui.control.Button
+        Previous10Button_2              matlab.ui.control.Button
+        UIAxes_Segmented                matlab.ui.control.UIAxes
+        UIAxes_Full                     matlab.ui.control.UIAxes
+        DvisualizerTab                  matlab.ui.container.Tab
+        Displaysegmentedimages3DvolumeButton  matlab.ui.control.Button
+        DisplayMRI3DVolumeButton        matlab.ui.control.Button
+        UIAxes_H3DVolume                matlab.ui.control.UIAxes
+        UIAxes_3DVolume                 matlab.ui.control.UIAxes
+        VolumeFinderTab                 matlab.ui.container.Tab
+        HippocampusPhysicalVolumeEditField  matlab.ui.control.EditField
+        HippocampusPhysicalVolumeEditFieldLabel  matlab.ui.control.Label
+        HippocampusVoxelsizeEditField   matlab.ui.control.NumericEditField
+        HippocampusVoxelsizeEditFieldLabel  matlab.ui.control.Label
+        CalculateVolumeButton           matlab.ui.control.Button
+        HippocampusPixelsizeEditField   matlab.ui.control.NumericEditField
+        HippocampusPixelsizeEditFieldLabel  matlab.ui.control.Label
+        UIAxes_H3DVolume_2              matlab.ui.control.UIAxes
+        VolumecompareTab                matlab.ui.container.Tab
+        CalculateButton                 matlab.ui.control.Button
+        VolumeLossPercentEditField      matlab.ui.control.EditField
+        VolumeLossLabel                 matlab.ui.control.Label
+        VolumeLossEditField             matlab.ui.control.EditField
+        VolumeLossLabel_2               matlab.ui.control.Label
+        SelectAfterButton               matlab.ui.control.Button
+        SelectBeforeButton              matlab.ui.control.Button
+        PhysicalVolumeAfterEditField    matlab.ui.control.EditField
+        PhysicalVolumeAfterEditFieldLabel  matlab.ui.control.Label
+        PhysicalVolumeBeforeEditField   matlab.ui.control.EditField
+        PhysicalVolumeBeforeLabel       matlab.ui.control.Label
+        UIAxes_H3DVolume_5              matlab.ui.control.UIAxes
+        UIAxes_H3DVolume_4              matlab.ui.control.UIAxes
+        MRIformatButtonGroup            matlab.ui.container.ButtonGroup
+        DICOMButton                     matlab.ui.control.RadioButton
+        HippocampusVolumefinderLabel    matlab.ui.control.Label
+        ImportButton                    matlab.ui.control.Button
+        FolderPathEditField             matlab.ui.control.EditField
+        FolderPathEditFieldLabel        matlab.ui.control.Label
+    end
+
+properties (Access = private)
+        FolderPath                   string
+        SegmentedFolderPath          string
+        dicomFiles
+        dicomInfo
+        
+        segmentedImages 
+        image3D
+        skullMaxLength
+    end
+    
+    methods (Access = private)
+        function initialize(app)
+            if isfolder(app.FolderPath)
+                 clc;
+                 close all;
+                 app.dicomFiles = dir(fullfile(app.FolderPath, '*.dcm'));
+                 app.dicomInfo = dicominfo(fullfile(app.FolderPath, app.dicomFiles(1).name));
+                 app.skullMaxLength = findMaxSkullLD(app);
+                 disp(['skullmax',num2str(app.skullMaxLength)]);
+                 if isempty(app.dicomFiles)
+                    app.showErrorDialog('The selected folder does not contain any DICOM files.');
+                    return;
+                 end
+                 index = 1;
+                 dicomImage = dicomread(fullfile(app.FolderPath, app.dicomFiles(index).name));
+                 imshow(dicomImage,[], 'Parent', app.UIAxes);
+                 title(app.UIAxes, ['DICOM slice ',num2str(index)]);
+                 imshow(dicomImage,[], 'Parent', app.UIAxes_Full);
+                 title(app.UIAxes_Full, ['DICOM slice ', num2str(index)]);
+                 
+                if isfield(app.dicomInfo, 'PatientName') && isfield(app.dicomInfo.PatientName, 'GivenName')
+                    app.NameEditField.Value = app.dicomInfo.PatientName.GivenName;
+                end
+                
+                if isfield(app.dicomInfo, 'PatientID')
+                    app.IDEditField.Value = app.dicomInfo.PatientID;
+                end
+                
+                if isfield(app.dicomInfo, 'PatientSex')
+                    app.SexEditField.Value = app.dicomInfo.PatientSex;
+                end
+                
+                if isfield(app.dicomInfo, 'PatientAge')
+                    app.AgeEditField.Value = app.dicomInfo.PatientAge;
+                end
+                
+                
+                app.MLDEditField.Value = app.skullMaxLength;
+                app.getPlaneView(app.dicomInfo.ImageOrientationPatient);
+                app.NumberofslicesEditField.Value = numel(app.dicomFiles);
+                app.NumberofrowsEditField.Value = double(app.dicomInfo.Rows);
+                app.NumberofcolsEditField.Value = double(app.dicomInfo.Columns);
+                app.SlicethicnessEditField.Value = app.dicomInfo.SliceThickness;
+                app.PixalspacingXEditField.Value = app.dicomInfo.PixelSpacing(1);
+                app.PixalspacingYEditField.Value = app.dicomInfo.PixelSpacing(2);
+                
+                [~, folderName, ~] = fileparts(app.FolderPath);
+                uniqueFolderName = sprintf('segmented_%s', folderName);
+                app.SegmentedFolderPath = fullfile(fileparts(app.FolderPath), uniqueFolderName);
+               
+            else
+                app.showErrorDialog('Unsupported file type')
+            return;
+            end
+        end
+        
+        function processedImage = preprocessImage(app, dicomImage)
+            processedImage = dicomImage;
+        
+            if app.MedianFilterCheckBox.Value
+                processedImage = medfilt2(processedImage);
+            end
+
+            if app.GaussianFilterCheckBox.Value
+                processedImage = imgaussfilt(processedImage);
+            end
+
+            if app.ContrastStretchCheckBox.Value
+               processedImage = (processedImage - min(processedImage(:))) / (max(processedImage(:)) - min(processedImage(:)));
+            end
+
+            if app.ContrastStretchCheckBox.Value
+               processedImage = imadjust(processedImage);
+            end
+        
+            if app.HistogramEqualizationCheckBox.Value
+                processedImage = histeq(processedImage);
+            end
+        
+            if app.ResampleLD256pxCheckBox.Value
+                original_height = app.dicomInfo.Rows;
+                original_weigth = app.dicomInfo.Columns;
+                targetHeight = round(double(original_height) * 256 / double(app.skullMaxLength));
+                targetWidth = round(double(original_weigth) * targetHeight / double(original_height));
+                processedImage = imresize(processedImage, [targetHeight, targetWidth]);
+                app.NumberofcolsEditField.Value = double(targetWidth);
+                app.NumberofrowsEditField.Value = double(targetHeight);
+            end
+
+           
+            if isequal(class(processedImage), 'uint16')
+                processedImage = double(processedImage) / double(intmax('uint16'));
+            end
+        end
+        
+        function displayImage(app, processedImage)
+            imshow(processedImage, [], 'Parent', app.UIAxes);
+            imshow(processedImage, [], 'Parent', app.UIAxes_Full);
+        end
+
+        
+        function navigateSlices(app, direction)
+            str = app.UIAxes.Title.String;
+            currentSliceIndex = regexp(str, '\d+', 'match');
+            currentSliceIndex = str2double(currentSliceIndex);
+
+            if direction == "previous10"
+                newSliceIndex = max(1, currentSliceIndex - 10);
+            elseif direction == "previous"
+                newSliceIndex = max(1, currentSliceIndex - 1);
+            elseif direction == "next"
+                newSliceIndex = min(numel(app.dicomFiles), currentSliceIndex + 1);
+            elseif direction == "next10"
+                newSliceIndex = min(numel(app.dicomFiles), currentSliceIndex + 10);
+            end
+
+            title(app.UIAxes, ['DICOM slice ', num2str(newSliceIndex)]);
+            title(app.UIAxes_Full, ['DICOM slice ', num2str(newSliceIndex)]);
+
+            dicomImage = dicomread(fullfile(app.FolderPath, app.dicomFiles(newSliceIndex).name));
+            app.MaskDisplay(newSliceIndex);
+            processedImage = preprocessImage(app, dicomImage);
+            displayImage(app, processedImage);
+        end
+        
+        function MaskDisplay(app, currentSliceIndex)
+            if currentSliceIndex >= 1 && currentSliceIndex <= numel(app.segmentedImages) && ~isempty(app.segmentedImages{currentSliceIndex})
+                dicomImage = dicomread(fullfile(app.FolderPath, app.dicomFiles(currentSliceIndex).name));
+                processedImage = preprocessImage(app, dicomImage);
+                segmentedImg = double(processedImage) .* double(app.segmentedImages{currentSliceIndex});
+                SaveSegmentedDicom(app, currentSliceIndex, segmentedImg);
+                imshow(segmentedImg,[], 'Parent', app.UIAxes_Segmented);
+                title(app.UIAxes_Segmented, ['Segmented slice ', num2str(currentSliceIndex)]);
+            else 
+                cla(app.UIAxes_Segmented); 
+            end
+        end
+
+        function SaveSegmentedDicom(app, currentSliceIndex, segmentedImg)
+                
+                normalizedImg = (segmentedImg - min(segmentedImg(:))) / (max(segmentedImg(:)) - min(segmentedImg(:)));
+                           
+                saveFileName = fullfile(app.SegmentedFolderPath, ['segmented_images_', num2str(currentSliceIndex), '.dcm']);
+                dicomFile = dicominfo(fullfile(app.FolderPath, app.dicomFiles(currentSliceIndex).name));
+                segmentedDicom = uint16(normalizedImg * (2^16 - 1));
+                try
+                     dicomwrite(segmentedDicom, saveFileName, dicomFile);
+                     disp(['Saved DICOM file: ', saveFileName]);
+                catch ex
+                     disp(['Error saving DICOM file: ', ex.message]);
+                end
+        end
+
+       function displayVolumes(app, folderPath, axes)
+            app.dicomFiles = dir(fullfile(folderPath, '*.dcm'));
+            app.dicomInfo = dicominfo(fullfile(folderPath, app.dicomFiles(1).name));
+            if isempty(app.dicomFiles)
+                error('No DICOM files found in the specified directory.');
+            end
+        
+            slicePositions = zeros(numel(app.dicomFiles), 1);
+            for i = 1:numel(app.dicomFiles)
+                info = dicominfo(fullfile(folderPath, app.dicomFiles(i).name));
+                slicePositions(i) = info.ImagePositionPatient(3); % Z-coordinate
+            end
+        
+            [~, sortedIndices] = sort(slicePositions);
+            
+            firstSlice = dicomread(fullfile(folderPath, app.dicomFiles(1).name));
+            app.image3D = zeros([size(firstSlice), numel(app.dicomFiles)], class(firstSlice));
+            for slice = 1:numel(app.dicomFiles)
+                thisSlice = dicomread(fullfile(folderPath, app.dicomFiles(sortedIndices(slice)).name));
+                app.image3D(:,:,slice) = thisSlice;
+            end
+            % axesHandle = axes;
+              pixelSpacing = app.dicomInfo.PixelSpacing;
+            sliceThickness = app.dicomInfo.SliceThickness;
+vol3d('cdata', squeeze(app.image3D), 'xdata', [0 pixelSpacing(1)], 'ydata', [0 pixelSpacing(2)], 'zdata', [0 sliceThickness],'parent', axes);
+mri_colormap = [
+0 0 0;
+1 1 1;
+1 0 1;
+];
+colormap (axes , mri_colormap );
+axis(axes, 'tight','equal');
+view(axes , -37.5 , 30);
+           %  pixelSpacing = app.dicomInfo.PixelSpacing;
+           %  sliceThickness = app.dicomInfo.SliceThickness;
+           % 
+           %  axesHandle = axes;
+           %  intensity = [0 20 40 120 220 1024];
+           %  color = [0 0 0; 43 0 0; 103 37 20; 199 155 97; 216 213 201; 255 255 255]/255;
+           % 
+           %  queryPoints = linspace(min(intensity),max(intensity),256);
+           % % 
+           %  clrmap = interp1(intensity,color,queryPoints);
+           % % 
+           %  colormap(axesHandle, clrmap);
+           %  axis(axesHandle, 'tight', 'equal');
+           %  vol3d('cdata', squeeze(app.image3D), 'xdata', [0 pixelSpacing(1)], 'ydata', [0 pixelSpacing(2)], 'zdata', [0 sliceThickness],'parent', axes);
+           % % 
+           %  % isovalue = 100; 
+           %  % p = patch(isosurface(app.image3D, isovalue));
+           %  % isonormals(app.image3D, p);
+           %  % 
+           %  % set(p, 'FaceColor', 'red', 'EdgeColor', 'none');
+           %  % 
+           %  % set(p, 'EdgeColor', 'blue', 'EdgeAlpha', 0.5); 
+           % 
+           %  % Rotate the axes (adjust the azimuth and elevation angles as needed)
+           %  view(axesHandle, -37.5, 30);
+           %  volshow(app.image3D,'Colormap', colormap);
+           % %  axis(axesHandle,'equal');
+           % % 
+           % % volshow(app.image3D);
+           %  % % intensity = [0 20 40 120 220 1024];
+           %  % % % alpha = [0 0 0.15 0.3 0.38 0.5];
+           %  % % color = [0 0 0; 43 0 0; 103 37 20; 199 155 97; 216 213 201; 255 255 255]/255;
+           %  % % queryPoints = linspace(min(intensity),max(intensity),256);
+           %  % % 
+           %  % % clrmap = interp1(intensity,color,queryPoints);
+           %  % % 
+           %  % % 
+           %  % %  colormap(axes, clrmap);
+           %  % %  view(axis, -37.5, 30);
+           %  % % % alphamap = interp1(intensity,alpha,queryPoints)';
+           %  % % % axis(axes, 'tight','equal');
+           %  axis("off");
+            % isovalue = 100; 
+            % p = patch(isosurface(app.image3D, isovalue));
+            % isonormals(app.image3D, p);
+            % 
+            % set(p, 'FaceColor', 'red', 'EdgeColor', 'none');
+            % 
+            % set(p, 'EdgeColor', 'blue', 'EdgeAlpha', 0.5); 
+            % 
+            % volshow(app.image3D,'Colormap', colormap);
+        end
+
+
+        function [max_skull_length] = findMaxSkullLD(app)
+            max_skull_length = 0;
+            for i = 1:numel(app.dicomFiles)
+                dicomImage = dicomread(fullfile(app.FolderPath, app.dicomFiles(i).name));
+                dicomImage = medfilt2(dicomImage);
+                threshold = graythresh(dicomImage);
+                binaryImage = imbinarize(dicomImage, threshold);   
+                [y_coords, x_coords] = find(binaryImage == 1); 
+                orientation = app.dicomInfo.ImageOrientationPatient;
+                
+                if orientation(1) == 1 && orientation(6) == 0
+                    min_coord = min(y_coords);
+                    max_coord = max(y_coords);
+                    disp(['y',num2str(max_coord)]);
+                    disp(['y',num2str(min_coord)]);
+                    disp(i);
+                else
+                    min_coord = min(x_coords);
+                    max_coord = max(x_coords);
+                    disp(['x',num2str(max_coord)]);
+                    disp(['x',num2str(min_coord)]);
+                    disp(i);
+                    
+                end
+                
+                skull_length = max_coord - min_coord;
+                if max_coord == size(dicomImage, 2)
+                    continue;
+                end
+                if skull_length == size(dicomImage, 1) - 1
+                    continue;
+                end
+                if skull_length >= max_skull_length
+                    max_skull_length = skull_length;
+                    disp(['li',i]);
+                end
+            end
+        end
+
+        function getPlaneView(app,orientation)
+            if isequal(orientation, [1; 0; 0; 0; 0; -1])
+                app.ViewEditField.Value = 'Coronal plane';
+            elseif isequal(orientation, [0; 1; 0; 0; 0; -1])
+                app.ViewEditField.Value = 'Sagittal plane';
+            elseif isequal(orientation, [1; 0; 0; 0; 1; 0])
+                app.ViewEditField.Value ='Axial plane';
+            else
+                app.ViewEditField.Value ='Unknown plane';
+            end
+        end
+
+        function segmentedPixelCount = countSegmentedPixels(app,segmentedImg)
+            if isempty(segmentedImg)
+                segmentedPixelCount = 0;
+            else
+                segmentedPixelCount = nnz(segmentedImg);
+            end
+        end
+        function [PC, VC, PV] = calculateVolume(app,FolderPath)
+            dicom_files = dir(fullfile(FolderPath, '*.dcm'));
+            dicom_info = dicominfo(fullfile(FolderPath, dicom_files(1).name));
+            totalPixelCount = 0;
+            for i = 1:numel(dicom_files)
+                segmentedImg = dicomread(fullfile(FolderPath, dicom_files(i).name));
+                segmentedPixelCount = countSegmentedPixels(app,segmentedImg);
+                totalPixelCount = totalPixelCount + segmentedPixelCount;
+                if(i == 1) 
+                    disp(size(segmentedImg));
+                end
+            end
+            totalVoxelCount= totalPixelCount * dicom_info.SliceThickness;
+            pixelSpacingX = dicom_info.PixelSpacing(1);
+            pixelSpacingY = dicom_info.PixelSpacing(2);
+            sliceThickness = dicom_info.SliceThickness;
+            physicalVolume_mm3 = totalPixelCount * pixelSpacingX * pixelSpacingY * sliceThickness;
+
+            disp(['Total Segmented Pixel Count: ', num2str(totalPixelCount)]);
+            disp(['Physical Volume: ', num2str(physicalVolume_mm3), ' cubic units']);
+            disp(['Pixel Spacing (X): ', num2str(pixelSpacingX)]);
+            disp(['Pixel Spacing (Y): ', num2str(pixelSpacingY)]);
+            disp(['Slice Thickness: ', num2str(sliceThickness)]);
+            PC = totalPixelCount;
+            VC = totalVoxelCount;
+            PV = physicalVolume_mm3;
+        end
+        
+
+        function showErrorDialog(~, errorMessage)
+            errordlg(errorMessage, 'Error', 'modal');
+        end
+
+    end
+    
+
+    % Callbacks that handle component events
+    methods (Access = private)
+
+        % Callback function
+        function FilenameEditFieldValueChanged(app, event)
+
+        end
+
+        % Button pushed function: ImportButton
+        function ImportButtonPushed(app, event)
+            folderPath = uigetdir('', 'Select a DICOM folder');
+            if folderPath == 0
+	            return;
+            end
+            app.FolderPath = folderPath;
+            app.initialize();
+            app.FolderPathEditField.Value = app.FolderPath;
+        end
+
+        % Selection changed function: MRIformatButtonGroup
+        function MRIformatButtonGroupSelectionChanged(app, event)
+
+        end
+
+        % Button pushed function: Previous10Button
+        function Previous10ButtonPushed(app, event)
+            app.navigateSlices("previous10");
+        end
+
+        % Button pushed function: PreviousButton
+        function PreviousButtonPushed(app, event)
+            app.navigateSlices("previous");
+        end
+
+        % Button pushed function: NextButton
+        function NextButtonPushed(app, event)
+            app.navigateSlices("next");
+        end
+
+        % Button pushed function: Next10Button
+        function Next10ButtonPushed(app, event)
+            app.navigateSlices("next10");
+        end
+
+        % Value changed function: MedianFilterCheckBox
+        function MedianFilterCheckBoxValueChanged(app, event)
+            str = app.UIAxes.Title.String;
+            currentSliceIndex = regexp(str, '\d+', 'match');
+            currentSliceIndex = str2double(currentSliceIndex);
+            dicomImage = dicomread(fullfile(app.FolderPath, app.dicomFiles(currentSliceIndex).name));
+            processedImage = preprocessImage(app, dicomImage);
+            displayImage(app, processedImage);
+        end
+
+        % Value changed function: ContrastStretchCheckBox
+        function ContrastStretchCheckBoxValueChanged(app, event)
+            str = app.UIAxes.Title.String;
+            currentSliceIndex = regexp(str, '\d+', 'match');
+            currentSliceIndex = str2double(currentSliceIndex);
+            dicomImage = dicomread(fullfile(app.FolderPath, app.dicomFiles(currentSliceIndex).name));
+            processedImage = preprocessImage(app, dicomImage);
+            displayImage(app, processedImage);
+        end
+
+        % Value changed function: HistogramEqualizationCheckBox
+        function HistogramEqualizationCheckBoxValueChanged(app, event)
+            str = app.UIAxes.Title.String;
+            currentSliceIndex = regexp(str, '\d+', 'match');
+            currentSliceIndex = str2double(currentSliceIndex);
+            dicomImage = dicomread(fullfile(app.FolderPath, app.dicomFiles(currentSliceIndex).name));
+            processedImage = preprocessImage(app, dicomImage);
+            displayImage(app, processedImage);
+        end
+
+        % Value changed function: ResampleLD256pxCheckBox
+        function ResampleLD256pxCheckBoxValueChanged(app, event)
+            str = app.UIAxes.Title.String;
+            currentSliceIndex = regexp(str, '\d+', 'match');
+            currentSliceIndex = str2double(currentSliceIndex);
+            dicomImage = dicomread(fullfile(app.FolderPath, app.dicomFiles(currentSliceIndex).name));
+            processedImage = preprocessImage(app, dicomImage);
+            displayImage(app, processedImage);
+        end
+
+        % Button pushed function: SegmentButton
+        function SegmentButtonPushed(app, event)
+            str = app.UIAxes.Title.String;
+            currentSliceIndex = regexp(str, '\d+', 'match');
+            currentSliceIndex = str2double(currentSliceIndex);
+            h = drawfreehand(app.UIAxes_Full);
+            wait(h);
+             if isvalid(h)
+                mask = createMask(h);
+                app.segmentedImages{currentSliceIndex} = (mask);
+                dicomImage = dicomread(fullfile(app.FolderPath, app.dicomFiles(currentSliceIndex).name));
+                processedImage = preprocessImage(app, dicomImage);
+                segmentedImg = double(processedImage) .* double(app.segmentedImages{currentSliceIndex}) ;
+                imshow(segmentedImg,[], 'Parent', app.UIAxes_Segmented);
+            else
+                app.segmentedImages{currentSliceIndex} = []; 
+            end
+            app.MaskDisplay(currentSliceIndex);
+        end
+
+        % Button pushed function: Next10Button_2
+        function Next10Button_2Pushed(app, event)
+            app.navigateSlices("next10");
+        end
+
+        % Button pushed function: NextButton_2
+        function NextButton_2Pushed(app, event)
+            app.navigateSlices("next");
+        end
+
+        % Button pushed function: PreviousButton_2
+        function PreviousButton_2Pushed(app, event)
+            app.navigateSlices("previous");
+        end
+
+        % Button pushed function: Previous10Button_2
+        function Previous10Button_2Pushed(app, event)
+            app.navigateSlices("previous10");
+        end
+
+        % Button pushed function: DisplayMRI3DVolumeButton
+        function DisplayMRI3DVolumeButtonPushed(app, event)
+            app.displayVolumes(app.FolderPath, app.UIAxes_3DVolume);
+        end
+
+        % Button pushed function: Displaysegmentedimages3DvolumeButton
+        function Displaysegmentedimages3DvolumeButtonPushed(app, event)
+            [~, folderName, ~] = fileparts(app.FolderPath);
+            uniqueFolderName = sprintf('segmented_%s', folderName);
+            app.SegmentedFolderPath = fullfile(fileparts(app.FolderPath), uniqueFolderName);
+            app.displayVolumes(app.SegmentedFolderPath, app.UIAxes_H3DVolume);
+            app.displayVolumes(app.SegmentedFolderPath, app.UIAxes_H3DVolume_2);
+        end
+
+        % Button pushed function: CreateNewFolderButton
+        function CreateNewFolderButtonPushed(app, event)
+            if ~exist(app.SegmentedFolderPath, 'dir')
+                mkdir(app.SegmentedFolderPath);
+                disp(['Created folder: ', app.SegmentedFolderPath]);
+            end
+            % Write an empty DICOM file with the same metadata as the original DICOM file
+            dicomFile = dicominfo(fullfile(app.FolderPath, app.dicomFiles(1).name));
+            dicomImage = dicomread(fullfile(app.FolderPath, app.dicomFiles(1).name));
+            processedImage = preprocessImage(app, dicomImage);
+
+
+            resizeFactor = size(processedImage) ./ size(dicomImage);
+            disp(resizeFactor);
+            originalPixelSpacing = dicomFile.PixelSpacing;
+            disp(originalPixelSpacing);
+            newPixelSpacing = originalPixelSpacing ./ resizeFactor;
+            disp(newPixelSpacing);
+            dicomFile.PixelSpacing(1) = newPixelSpacing(1);
+            dicomFile.PixelSpacing(2) = newPixelSpacing(2);
+            disp(dicomFile.PixelSpacing);
+            for i = 1:numel(app.dicomFiles)
+                % Generate the file name for the empty DICOM file
+                emptySaveFileName = fullfile(app.SegmentedFolderPath, ['segmented_images_', num2str(i), '.dcm']);
+                try
+                    dicomwrite(uint16(zeros(size(processedImage))), emptySaveFileName, dicomFile);
+                    disp(['Saved empty DICOM file: ', emptySaveFileName]);
+                catch ex
+                    disp(['Error saving empty DICOM file: ', ex.message]);
+                end
+            end
+
+        end
+
+        % Callback function
+        function SagittalPlaneCheckBoxValueChanged(app, event)
+            str = app.UIAxes.Title.String;
+            currentSliceIndex = regexp(str, '\d+', 'match');
+            currentSliceIndex = str2double(currentSliceIndex);
+            dicomImage = dicomread(fullfile(app.FolderPath, app.dicomFiles(currentSliceIndex).name));
+            processedImage = preprocessImage(app, dicomImage);
+            displayImage(app, processedImage);
+        end
+
+        % Button pushed function: CalculateVolumeButton
+        function CalculateVolumeButtonPushed(app, event)
+            [PC,VC,PV] = calculateVolume(app,app.SegmentedFolderPath);
+            app.HippocampusPixelsizeEditField.Value = PC;
+            app.HippocampusVoxelsizeEditField.Value = VC;
+            app.HippocampusPhysicalVolumeEditField.Value = [num2str(PV), ' mm^3'];
+        end
+
+        % Value changed function: GaussianFilterCheckBox
+        function GaussianFilterCheckBoxValueChanged(app, event)
+            str = app.UIAxes.Title.String;
+            currentSliceIndex = regexp(str, '\d+', 'match');
+            currentSliceIndex = str2double(currentSliceIndex);
+            dicomImage = dicomread(fullfile(app.FolderPath, app.dicomFiles(currentSliceIndex).name));
+            processedImage = preprocessImage(app, dicomImage);
+            displayImage(app, processedImage);
+        end
+
+        % Value changed function: NormalizationCheckBox
+        function NormalizationCheckBoxValueChanged(app, event)
+            str = app.UIAxes.Title.String;
+            currentSliceIndex = regexp(str, '\d+', 'match');
+            currentSliceIndex = str2double(currentSliceIndex);
+            dicomImage = dicomread(fullfile(app.FolderPath, app.dicomFiles(currentSliceIndex).name));
+            processedImage = preprocessImage(app, dicomImage);
+            displayImage(app, processedImage);
+        end
+
+        % Button pushed function: SelectBeforeButton
+        function SelectBeforeButtonPushed(app, event)
+            folderPath = uigetdir('', 'Select a DICOM folder');
+            if folderPath == 0
+	            return;
+            end
+            app.displayVolumes(folderPath, app.UIAxes_H3DVolume_4);
+            [PC,VC,PV] = calculateVolume(app,folderPath);
+            app.HippocampusPixelsizeEditField.Value = PC;
+            app.HippocampusVoxelsizeEditField.Value = VC;
+            app.PhysicalVolumeBeforeEditField.Value = [num2str(PV), ' mm^3'];
+        end
+
+        % Button pushed function: SelectAfterButton
+        function SelectAfterButtonPushed(app, event)
+            folderPath = uigetdir('', 'Select a DICOM folder');
+            if folderPath == 0
+	            return;
+            end
+            app.displayVolumes(folderPath, app.UIAxes_H3DVolume_5);
+            [PC,VC,PV] = calculateVolume(app,folderPath);
+            app.HippocampusPixelsizeEditField.Value = PC;
+            app.HippocampusVoxelsizeEditField.Value = VC;
+            app.PhysicalVolumeAfterEditField.Value = [num2str(PV), ' mm^3'];
+        end
+
+        % Button pushed function: CalculateButton
+        function CalculateButtonPushed(app, event)
+            volumeBeforeStr = app.PhysicalVolumeBeforeEditField.Value;
+            volumeAfterStr = app.PhysicalVolumeAfterEditField.Value;
+        
+            volumeBefore = str2double(regexp(volumeBeforeStr, '\d+\.?\d*', 'match', 'once'));
+            volumeAfter = str2double(regexp(volumeAfterStr, '\d+\.?\d*', 'match', 'once'));
+            if isnumeric(volumeBefore) && isnumeric(volumeAfter) && volumeBefore > 0 && volumeAfter >= 0
+                volumeLoss = volumeBefore - volumeAfter;
+                app.VolumeLossEditField.Value = num2str(volumeLoss); 
+                if volumeBefore > 0
+                    volumeLossPercent = 100 - (volumeAfter * 100 / volumeBefore);
+                    app.VolumeLossPercentEditField.Value = num2str(volumeLossPercent);
+                else
+                app.VolumeLossPercentEditField.Value = NaN;
+                end
+            else
+            app.VolumeLossEditField.Value = NaN; 
+            app.VolumeLossPercentEditField.Value = NaN; 
+            end
+        end
+    end
+
+    % Component initialization
+    methods (Access = private)
+
+        % Create UIFigure and components
+        function createComponents(app)
+
+            % Create UIFigure and hide until all components are created
+            app.UIFigure = uifigure('Visible', 'off');
+            app.UIFigure.Position = [100 100 979 520];
+            app.UIFigure.Name = 'MATLAB App';
+
+            % Create FolderPathEditFieldLabel
+            app.FolderPathEditFieldLabel = uilabel(app.UIFigure);
+            app.FolderPathEditFieldLabel.HorizontalAlignment = 'right';
+            app.FolderPathEditFieldLabel.Position = [236 474 87 22];
+            app.FolderPathEditFieldLabel.Text = 'Folder Path :';
+
+            % Create FolderPathEditField
+            app.FolderPathEditField = uieditfield(app.UIFigure, 'text');
+            app.FolderPathEditField.Position = [336 474 603 22];
+
+            % Create ImportButton
+            app.ImportButton = uibutton(app.UIFigure, 'push');
+            app.ImportButton.ButtonPushedFcn = createCallbackFcn(app, @ImportButtonPushed, true);
+            app.ImportButton.BackgroundColor = [0 0.4471 0.7412];
+            app.ImportButton.FontColor = [1 1 1];
+            app.ImportButton.Position = [20 406 158 23];
+            app.ImportButton.Text = 'Import';
+
+            % Create HippocampusVolumefinderLabel
+            app.HippocampusVolumefinderLabel = uilabel(app.UIFigure);
+            app.HippocampusVolumefinderLabel.FontSize = 14;
+            app.HippocampusVolumefinderLabel.FontWeight = 'bold';
+            app.HippocampusVolumefinderLabel.Position = [6 494 195 22];
+            app.HippocampusVolumefinderLabel.Text = 'Hippocampus Volume finder';
+
+            % Create MRIformatButtonGroup
+            app.MRIformatButtonGroup = uibuttongroup(app.UIFigure);
+            app.MRIformatButtonGroup.SelectionChangedFcn = createCallbackFcn(app, @MRIformatButtonGroupSelectionChanged, true);
+            app.MRIformatButtonGroup.Title = 'MRI format';
+            app.MRIformatButtonGroup.Position = [20 436 159 49];
+
+            % Create DICOMButton
+            app.DICOMButton = uiradiobutton(app.MRIformatButtonGroup);
+            app.DICOMButton.Text = 'DICOM';
+            app.DICOMButton.Position = [11 3 62 22];
+            app.DICOMButton.Value = true;
+
+            % Create TabGroup
+            app.TabGroup = uitabgroup(app.UIFigure);
+            app.TabGroup.Position = [236 39 744 422];
+
+            % Create ImagePreprocessingTab
+            app.ImagePreprocessingTab = uitab(app.TabGroup);
+            app.ImagePreprocessingTab.Title = 'Image Preprocessing';
+
+            % Create UIAxes
+            app.UIAxes = uiaxes(app.ImagePreprocessingTab);
+            title(app.UIAxes, 'Title')
+            app.UIAxes.Position = [101 86 366 273];
+
+            % Create PreviousButton
+            app.PreviousButton = uibutton(app.ImagePreprocessingTab, 'push');
+            app.PreviousButton.ButtonPushedFcn = createCallbackFcn(app, @PreviousButtonPushed, true);
+            app.PreviousButton.BackgroundColor = [0.902 0.902 0.902];
+            app.PreviousButton.Position = [198 32 100 23];
+            app.PreviousButton.Text = 'Previous';
+
+            % Create Previous10Button
+            app.Previous10Button = uibutton(app.ImagePreprocessingTab, 'push');
+            app.Previous10Button.ButtonPushedFcn = createCallbackFcn(app, @Previous10ButtonPushed, true);
+            app.Previous10Button.BackgroundColor = [0.902 0.902 0.902];
+            app.Previous10Button.Position = [56 32 100 23];
+            app.Previous10Button.Text = 'Previous 10';
+
+            % Create NextButton
+            app.NextButton = uibutton(app.ImagePreprocessingTab, 'push');
+            app.NextButton.ButtonPushedFcn = createCallbackFcn(app, @NextButtonPushed, true);
+            app.NextButton.BackgroundColor = [0.902 0.902 0.902];
+            app.NextButton.Position = [329 32 100 23];
+            app.NextButton.Text = 'Next';
+
+            % Create Next10Button
+            app.Next10Button = uibutton(app.ImagePreprocessingTab, 'push');
+            app.Next10Button.ButtonPushedFcn = createCallbackFcn(app, @Next10ButtonPushed, true);
+            app.Next10Button.BackgroundColor = [0.902 0.902 0.902];
+            app.Next10Button.Position = [466 32 100 23];
+            app.Next10Button.Text = 'Next 10';
+
+            % Create MedianFilterCheckBox
+            app.MedianFilterCheckBox = uicheckbox(app.ImagePreprocessingTab);
+            app.MedianFilterCheckBox.ValueChangedFcn = createCallbackFcn(app, @MedianFilterCheckBoxValueChanged, true);
+            app.MedianFilterCheckBox.Text = 'Median Filter';
+            app.MedianFilterCheckBox.Position = [567 303 91 22];
+
+            % Create ContrastStretchCheckBox
+            app.ContrastStretchCheckBox = uicheckbox(app.ImagePreprocessingTab);
+            app.ContrastStretchCheckBox.ValueChangedFcn = createCallbackFcn(app, @ContrastStretchCheckBoxValueChanged, true);
+            app.ContrastStretchCheckBox.Text = 'Contrast Stretch';
+            app.ContrastStretchCheckBox.Position = [567 221 109 22];
+
+            % Create HistogramEqualizationCheckBox
+            app.HistogramEqualizationCheckBox = uicheckbox(app.ImagePreprocessingTab);
+            app.HistogramEqualizationCheckBox.ValueChangedFcn = createCallbackFcn(app, @HistogramEqualizationCheckBoxValueChanged, true);
+            app.HistogramEqualizationCheckBox.Text = 'Histogram Equalization';
+            app.HistogramEqualizationCheckBox.Position = [566 194 145 22];
+
+            % Create ResampleLD256pxCheckBox
+            app.ResampleLD256pxCheckBox = uicheckbox(app.ImagePreprocessingTab);
+            app.ResampleLD256pxCheckBox.ValueChangedFcn = createCallbackFcn(app, @ResampleLD256pxCheckBoxValueChanged, true);
+            app.ResampleLD256pxCheckBox.Text = 'Resample LD 256px';
+            app.ResampleLD256pxCheckBox.Position = [567 167 130 22];
+
+            % Create GaussianFilterCheckBox
+            app.GaussianFilterCheckBox = uicheckbox(app.ImagePreprocessingTab);
+            app.GaussianFilterCheckBox.ValueChangedFcn = createCallbackFcn(app, @GaussianFilterCheckBoxValueChanged, true);
+            app.GaussianFilterCheckBox.Text = 'Gaussian Filter';
+            app.GaussianFilterCheckBox.Position = [567 276 102 22];
+
+            % Create NormalizationCheckBox
+            app.NormalizationCheckBox = uicheckbox(app.ImagePreprocessingTab);
+            app.NormalizationCheckBox.ValueChangedFcn = createCallbackFcn(app, @NormalizationCheckBoxValueChanged, true);
+            app.NormalizationCheckBox.Text = 'Normalization';
+            app.NormalizationCheckBox.Position = [567 249 95 22];
+
+            % Create ImagesegmentationTab
+            app.ImagesegmentationTab = uitab(app.TabGroup);
+            app.ImagesegmentationTab.Title = 'Image segmentation';
+
+            % Create UIAxes_Full
+            app.UIAxes_Full = uiaxes(app.ImagesegmentationTab);
+            title(app.UIAxes_Full, 'Title')
+            app.UIAxes_Full.Position = [15 74 366 295];
+
+            % Create UIAxes_Segmented
+            app.UIAxes_Segmented = uiaxes(app.ImagesegmentationTab);
+            title(app.UIAxes_Segmented, 'Segmented ')
+            app.UIAxes_Segmented.XTick = [0 0.2 0.4 0.6 0.8 1];
+            app.UIAxes_Segmented.Position = [380 74 346 295];
+
+            % Create Previous10Button_2
+            app.Previous10Button_2 = uibutton(app.ImagesegmentationTab, 'push');
+            app.Previous10Button_2.ButtonPushedFcn = createCallbackFcn(app, @Previous10Button_2Pushed, true);
+            app.Previous10Button_2.BackgroundColor = [0.902 0.902 0.902];
+            app.Previous10Button_2.Position = [327 32 90 23];
+            app.Previous10Button_2.Text = 'Previous 10';
+
+            % Create PreviousButton_2
+            app.PreviousButton_2 = uibutton(app.ImagesegmentationTab, 'push');
+            app.PreviousButton_2.ButtonPushedFcn = createCallbackFcn(app, @PreviousButton_2Pushed, true);
+            app.PreviousButton_2.BackgroundColor = [0.902 0.902 0.902];
+            app.PreviousButton_2.Position = [427 32 90 23];
+            app.PreviousButton_2.Text = 'Previous';
+
+            % Create NextButton_2
+            app.NextButton_2 = uibutton(app.ImagesegmentationTab, 'push');
+            app.NextButton_2.ButtonPushedFcn = createCallbackFcn(app, @NextButton_2Pushed, true);
+            app.NextButton_2.BackgroundColor = [0.902 0.902 0.902];
+            app.NextButton_2.Position = [529 32 90 23];
+            app.NextButton_2.Text = 'Next';
+
+            % Create Next10Button_2
+            app.Next10Button_2 = uibutton(app.ImagesegmentationTab, 'push');
+            app.Next10Button_2.ButtonPushedFcn = createCallbackFcn(app, @Next10Button_2Pushed, true);
+            app.Next10Button_2.BackgroundColor = [0.902 0.902 0.902];
+            app.Next10Button_2.Position = [632 32 90 23];
+            app.Next10Button_2.Text = 'Next 10';
+
+            % Create SegmentButton
+            app.SegmentButton = uibutton(app.ImagesegmentationTab, 'push');
+            app.SegmentButton.ButtonPushedFcn = createCallbackFcn(app, @SegmentButtonPushed, true);
+            app.SegmentButton.BackgroundColor = [0.9098 0.8824 0.9098];
+            app.SegmentButton.Position = [171 32 100 23];
+            app.SegmentButton.Text = 'Segment';
+
+            % Create CreateNewFolderButton
+            app.CreateNewFolderButton = uibutton(app.ImagesegmentationTab, 'push');
+            app.CreateNewFolderButton.ButtonPushedFcn = createCallbackFcn(app, @CreateNewFolderButtonPushed, true);
+            app.CreateNewFolderButton.BackgroundColor = [0.9098 0.8824 0.9098];
+            app.CreateNewFolderButton.Position = [41 31 115 22];
+            app.CreateNewFolderButton.Text = 'Create New Folder';
+
+            % Create DvisualizerTab
+            app.DvisualizerTab = uitab(app.TabGroup);
+            app.DvisualizerTab.Title = '3D visualizer';
+
+            % Create UIAxes_3DVolume
+            app.UIAxes_3DVolume = uiaxes(app.DvisualizerTab);
+            title(app.UIAxes_3DVolume, '3D Volume')
+            app.UIAxes_3DVolume.XTick = [];
+            app.UIAxes_3DVolume.YTick = [];
+            app.UIAxes_3DVolume.ZTick = [];
+            app.UIAxes_3DVolume.LineWidth = 0.1;
+            app.UIAxes_3DVolume.Position = [14 53 367 305];
+
+            % Create UIAxes_H3DVolume
+            app.UIAxes_H3DVolume = uiaxes(app.DvisualizerTab);
+            title(app.UIAxes_H3DVolume, 'Hippocampus 3D volume')
+            xlabel(app.UIAxes_H3DVolume, 'x')
+            ylabel(app.UIAxes_H3DVolume, 'y')
+            zlabel(app.UIAxes_H3DVolume, 'z')
+            app.UIAxes_H3DVolume.XTick = [0 0.2 0.4 0.6 0.8 1];
+            app.UIAxes_H3DVolume.YTick = [0 0.2 0.4 0.6 0.8 1];
+            app.UIAxes_H3DVolume.ZTick = [0 0.2 0.4 0.6 0.8 1];
+            app.UIAxes_H3DVolume.Position = [393 53 331 305];
+
+            % Create DisplayMRI3DVolumeButton
+            app.DisplayMRI3DVolumeButton = uibutton(app.DvisualizerTab, 'push');
+            app.DisplayMRI3DVolumeButton.ButtonPushedFcn = createCallbackFcn(app, @DisplayMRI3DVolumeButtonPushed, true);
+            app.DisplayMRI3DVolumeButton.Position = [129 20 141 22];
+            app.DisplayMRI3DVolumeButton.Text = 'Display MRI 3D Volume';
+
+            % Create Displaysegmentedimages3DvolumeButton
+            app.Displaysegmentedimages3DvolumeButton = uibutton(app.DvisualizerTab, 'push');
+            app.Displaysegmentedimages3DvolumeButton.ButtonPushedFcn = createCallbackFcn(app, @Displaysegmentedimages3DvolumeButtonPushed, true);
+            app.Displaysegmentedimages3DvolumeButton.Position = [465 20 220 22];
+            app.Displaysegmentedimages3DvolumeButton.Text = 'Display segmented images 3D volume';
+
+            % Create VolumeFinderTab
+            app.VolumeFinderTab = uitab(app.TabGroup);
+            app.VolumeFinderTab.Title = 'Volume Finder';
+
+            % Create UIAxes_H3DVolume_2
+            app.UIAxes_H3DVolume_2 = uiaxes(app.VolumeFinderTab);
+            title(app.UIAxes_H3DVolume_2, 'Hippocampus 3D volume')
+            xlabel(app.UIAxes_H3DVolume_2, 'x')
+            ylabel(app.UIAxes_H3DVolume_2, 'y')
+            zlabel(app.UIAxes_H3DVolume_2, 'z')
+            app.UIAxes_H3DVolume_2.XTick = [0 0.2 0.4 0.6 0.8 1];
+            app.UIAxes_H3DVolume_2.YTick = [0 0.2 0.4 0.6 0.8 1];
+            app.UIAxes_H3DVolume_2.ZTick = [0 0.2 0.4 0.6 0.8 1];
+            app.UIAxes_H3DVolume_2.Position = [393 53 331 305];
+
+            % Create HippocampusPixelsizeEditFieldLabel
+            app.HippocampusPixelsizeEditFieldLabel = uilabel(app.VolumeFinderTab);
+            app.HippocampusPixelsizeEditFieldLabel.HorizontalAlignment = 'right';
+            app.HippocampusPixelsizeEditFieldLabel.Position = [50 336 132 22];
+            app.HippocampusPixelsizeEditFieldLabel.Text = 'Hippocampus Pixel size';
+
+            % Create HippocampusPixelsizeEditField
+            app.HippocampusPixelsizeEditField = uieditfield(app.VolumeFinderTab, 'numeric');
+            app.HippocampusPixelsizeEditField.Position = [197 336 100 22];
+
+            % Create CalculateVolumeButton
+            app.CalculateVolumeButton = uibutton(app.VolumeFinderTab, 'push');
+            app.CalculateVolumeButton.ButtonPushedFcn = createCallbackFcn(app, @CalculateVolumeButtonPushed, true);
+            app.CalculateVolumeButton.Position = [125 210 108 22];
+            app.CalculateVolumeButton.Text = 'Calculate Volume';
+
+            % Create HippocampusVoxelsizeEditFieldLabel
+            app.HippocampusVoxelsizeEditFieldLabel = uilabel(app.VolumeFinderTab);
+            app.HippocampusVoxelsizeEditFieldLabel.HorizontalAlignment = 'right';
+            app.HippocampusVoxelsizeEditFieldLabel.Position = [47 300 136 22];
+            app.HippocampusVoxelsizeEditFieldLabel.Text = 'Hippocampus Voxel size';
+
+            % Create HippocampusVoxelsizeEditField
+            app.HippocampusVoxelsizeEditField = uieditfield(app.VolumeFinderTab, 'numeric');
+            app.HippocampusVoxelsizeEditField.Position = [198 300 100 22];
+
+            % Create HippocampusPhysicalVolumeEditFieldLabel
+            app.HippocampusPhysicalVolumeEditFieldLabel = uilabel(app.VolumeFinderTab);
+            app.HippocampusPhysicalVolumeEditFieldLabel.HorizontalAlignment = 'right';
+            app.HippocampusPhysicalVolumeEditFieldLabel.Position = [13 261 170 22];
+            app.HippocampusPhysicalVolumeEditFieldLabel.Text = 'Hippocampus Physical Volume';
+
+            % Create HippocampusPhysicalVolumeEditField
+            app.HippocampusPhysicalVolumeEditField = uieditfield(app.VolumeFinderTab, 'text');
+            app.HippocampusPhysicalVolumeEditField.Position = [199 261 101 22];
+            app.HippocampusPhysicalVolumeEditField.Value = ' ';
+
+            % Create VolumecompareTab
+            app.VolumecompareTab = uitab(app.TabGroup);
+            app.VolumecompareTab.Title = 'Volume compare';
+
+            % Create UIAxes_H3DVolume_4
+            app.UIAxes_H3DVolume_4 = uiaxes(app.VolumecompareTab);
+            title(app.UIAxes_H3DVolume_4, 'Hippocampus 3D volume')
+            xlabel(app.UIAxes_H3DVolume_4, 'x')
+            ylabel(app.UIAxes_H3DVolume_4, 'y')
+            zlabel(app.UIAxes_H3DVolume_4, 'z')
+            app.UIAxes_H3DVolume_4.XTick = [0 0.2 0.4 0.6 0.8 1];
+            app.UIAxes_H3DVolume_4.YTick = [0 0.2 0.4 0.6 0.8 1];
+            app.UIAxes_H3DVolume_4.ZTick = [0 0.2 0.4 0.6 0.8 1];
+            app.UIAxes_H3DVolume_4.Position = [46 80 276 239];
+
+            % Create UIAxes_H3DVolume_5
+            app.UIAxes_H3DVolume_5 = uiaxes(app.VolumecompareTab);
+            title(app.UIAxes_H3DVolume_5, 'Hippocampus 3D volume')
+            xlabel(app.UIAxes_H3DVolume_5, 'x')
+            ylabel(app.UIAxes_H3DVolume_5, 'y')
+            zlabel(app.UIAxes_H3DVolume_5, 'z')
+            app.UIAxes_H3DVolume_5.XTick = [0 0.2 0.4 0.6 0.8 1];
+            app.UIAxes_H3DVolume_5.YTick = [0 0.2 0.4 0.6 0.8 1];
+            app.UIAxes_H3DVolume_5.ZTick = [0 0.2 0.4 0.6 0.8 1];
+            app.UIAxes_H3DVolume_5.Position = [400 80 276 239];
+
+            % Create PhysicalVolumeBeforeLabel
+            app.PhysicalVolumeBeforeLabel = uilabel(app.VolumecompareTab);
+            app.PhysicalVolumeBeforeLabel.HorizontalAlignment = 'right';
+            app.PhysicalVolumeBeforeLabel.Position = [55 41 138 22];
+            app.PhysicalVolumeBeforeLabel.Text = ' Physical Volume Before ';
+
+            % Create PhysicalVolumeBeforeEditField
+            app.PhysicalVolumeBeforeEditField = uieditfield(app.VolumecompareTab, 'text');
+            app.PhysicalVolumeBeforeEditField.Position = [198 41 119 22];
+            app.PhysicalVolumeBeforeEditField.Value = ' ';
+
+            % Create PhysicalVolumeAfterEditFieldLabel
+            app.PhysicalVolumeAfterEditFieldLabel = uilabel(app.VolumecompareTab);
+            app.PhysicalVolumeAfterEditFieldLabel.HorizontalAlignment = 'right';
+            app.PhysicalVolumeAfterEditFieldLabel.Position = [414 40 124 22];
+            app.PhysicalVolumeAfterEditFieldLabel.Text = ' Physical Volume After';
+
+            % Create PhysicalVolumeAfterEditField
+            app.PhysicalVolumeAfterEditField = uieditfield(app.VolumecompareTab, 'text');
+            app.PhysicalVolumeAfterEditField.Position = [543 40 118 22];
+            app.PhysicalVolumeAfterEditField.Value = ' ';
+
+            % Create SelectBeforeButton
+            app.SelectBeforeButton = uibutton(app.VolumecompareTab, 'push');
+            app.SelectBeforeButton.ButtonPushedFcn = createCallbackFcn(app, @SelectBeforeButtonPushed, true);
+            app.SelectBeforeButton.BackgroundColor = [0 0.4471 0.7412];
+            app.SelectBeforeButton.FontColor = [1 1 1];
+            app.SelectBeforeButton.Position = [130 11 108 23];
+            app.SelectBeforeButton.Text = 'Select Before';
+
+            % Create SelectAfterButton
+            app.SelectAfterButton = uibutton(app.VolumecompareTab, 'push');
+            app.SelectAfterButton.ButtonPushedFcn = createCallbackFcn(app, @SelectAfterButtonPushed, true);
+            app.SelectAfterButton.BackgroundColor = [0 0.4471 0.7412];
+            app.SelectAfterButton.FontColor = [1 1 1];
+            app.SelectAfterButton.Position = [488 11 108 23];
+            app.SelectAfterButton.Text = 'Select After';
+
+            % Create VolumeLossLabel_2
+            app.VolumeLossLabel_2 = uilabel(app.VolumecompareTab);
+            app.VolumeLossLabel_2.BackgroundColor = [0.902 0.902 0.902];
+            app.VolumeLossLabel_2.HorizontalAlignment = 'right';
+            app.VolumeLossLabel_2.Position = [52 352 80 22];
+            app.VolumeLossLabel_2.Text = 'Volume Loss: ';
+
+            % Create VolumeLossEditField
+            app.VolumeLossEditField = uieditfield(app.VolumecompareTab, 'text');
+            app.VolumeLossEditField.BackgroundColor = [0.902 0.902 0.902];
+            app.VolumeLossEditField.Position = [137 352 119 22];
+            app.VolumeLossEditField.Value = ' ';
+
+            % Create VolumeLossLabel
+            app.VolumeLossLabel = uilabel(app.VolumecompareTab);
+            app.VolumeLossLabel.BackgroundColor = [0.902 0.902 0.902];
+            app.VolumeLossLabel.HorizontalAlignment = 'right';
+            app.VolumeLossLabel.Position = [271 352 98 22];
+            app.VolumeLossLabel.Text = 'Volume Loss  % :';
+
+            % Create VolumeLossPercentEditField
+            app.VolumeLossPercentEditField = uieditfield(app.VolumecompareTab, 'text');
+            app.VolumeLossPercentEditField.BackgroundColor = [0.902 0.902 0.902];
+            app.VolumeLossPercentEditField.Position = [374 352 96 22];
+            app.VolumeLossPercentEditField.Value = ' ';
+
+            % Create CalculateButton
+            app.CalculateButton = uibutton(app.VolumecompareTab, 'push');
+            app.CalculateButton.ButtonPushedFcn = createCallbackFcn(app, @CalculateButtonPushed, true);
+            app.CalculateButton.BackgroundColor = [0.902 0.902 0.902];
+            app.CalculateButton.Position = [567 352 100 22];
+            app.CalculateButton.Text = 'Calculate ';
+
+            % Create PatientInformationPanel
+            app.PatientInformationPanel = uipanel(app.UIFigure);
+            app.PatientInformationPanel.Title = 'Patient Information';
+            app.PatientInformationPanel.Position = [20 265 158 128];
+
+            % Create IDLabel
+            app.IDLabel = uilabel(app.PatientInformationPanel);
+            app.IDLabel.HorizontalAlignment = 'right';
+            app.IDLabel.Position = [24 56 25 22];
+            app.IDLabel.Text = 'ID :';
+
+            % Create IDEditField
+            app.IDEditField = uieditfield(app.PatientInformationPanel, 'text');
+            app.IDEditField.Position = [59 56 91 22];
+
+            % Create AgeLabel
+            app.AgeLabel = uilabel(app.PatientInformationPanel);
+            app.AgeLabel.HorizontalAlignment = 'right';
+            app.AgeLabel.Position = [17 30 33 22];
+            app.AgeLabel.Text = 'Age :';
+
+            % Create AgeEditField
+            app.AgeEditField = uieditfield(app.PatientInformationPanel, 'text');
+            app.AgeEditField.Position = [59 30 91 22];
+
+            % Create SexLabel
+            app.SexLabel = uilabel(app.PatientInformationPanel);
+            app.SexLabel.HorizontalAlignment = 'right';
+            app.SexLabel.Position = [19 4 32 22];
+            app.SexLabel.Text = 'Sex :';
+
+            % Create SexEditField
+            app.SexEditField = uieditfield(app.PatientInformationPanel, 'text');
+            app.SexEditField.Position = [59 4 91 22];
+
+            % Create NameLabel
+            app.NameLabel = uilabel(app.PatientInformationPanel);
+            app.NameLabel.HorizontalAlignment = 'right';
+            app.NameLabel.Position = [5 81 44 22];
+            app.NameLabel.Text = 'Name :';
+
+            % Create NameEditField
+            app.NameEditField = uieditfield(app.PatientInformationPanel, 'text');
+            app.NameEditField.Position = [59 81 91 22];
+            app.NameEditField.Value = ' ';
+
+            % Create MRIseriesInformationPanel
+            app.MRIseriesInformationPanel = uipanel(app.UIFigure);
+            app.MRIseriesInformationPanel.Title = 'MRI series Information';
+            app.MRIseriesInformationPanel.Position = [20 12 196 234];
+
+            % Create NumberofslicesEditField_2Label
+            app.NumberofslicesEditField_2Label = uilabel(app.MRIseriesInformationPanel);
+            app.NumberofslicesEditField_2Label.BackgroundColor = [0.9412 0.9412 0.9412];
+            app.NumberofslicesEditField_2Label.HorizontalAlignment = 'right';
+            app.NumberofslicesEditField_2Label.Position = [5 183 97 22];
+            app.NumberofslicesEditField_2Label.Text = 'Number of slices :';
+
+            % Create NumberofslicesEditField
+            app.NumberofslicesEditField = uieditfield(app.MRIseriesInformationPanel, 'numeric');
+            app.NumberofslicesEditField.Position = [112 183 79 22];
+
+            % Create NumberofrowsEditFieldLabel
+            app.NumberofrowsEditFieldLabel = uilabel(app.MRIseriesInformationPanel);
+            app.NumberofrowsEditFieldLabel.HorizontalAlignment = 'right';
+            app.NumberofrowsEditFieldLabel.Position = [5 157 96 22];
+            app.NumberofrowsEditFieldLabel.Text = 'Number of rows :';
+
+            % Create NumberofrowsEditField
+            app.NumberofrowsEditField = uieditfield(app.MRIseriesInformationPanel, 'numeric');
+            app.NumberofrowsEditField.Position = [112 157 79 22];
+
+            % Create NumberofcolsEditField_2Label
+            app.NumberofcolsEditField_2Label = uilabel(app.MRIseriesInformationPanel);
+            app.NumberofcolsEditField_2Label.HorizontalAlignment = 'right';
+            app.NumberofcolsEditField_2Label.Position = [9 132 92 22];
+            app.NumberofcolsEditField_2Label.Text = 'Number of cols :';
+
+            % Create NumberofcolsEditField
+            app.NumberofcolsEditField = uieditfield(app.MRIseriesInformationPanel, 'numeric');
+            app.NumberofcolsEditField.Position = [112 132 79 22];
+
+            % Create SlicethicnessEditField_2Label
+            app.SlicethicnessEditField_2Label = uilabel(app.MRIseriesInformationPanel);
+            app.SlicethicnessEditField_2Label.HorizontalAlignment = 'right';
+            app.SlicethicnessEditField_2Label.Position = [13 107 88 22];
+            app.SlicethicnessEditField_2Label.Text = 'Slice thicness  :';
+
+            % Create SlicethicnessEditField
+            app.SlicethicnessEditField = uieditfield(app.MRIseriesInformationPanel, 'numeric');
+            app.SlicethicnessEditField.Position = [112 107 79 22];
+
+            % Create PixalspacingLabel
+            app.PixalspacingLabel = uilabel(app.MRIseriesInformationPanel);
+            app.PixalspacingLabel.HorizontalAlignment = 'right';
+            app.PixalspacingLabel.Position = [7 82 94 22];
+            app.PixalspacingLabel.Text = 'Pixal spacing X :';
+
+            % Create PixalspacingXEditField
+            app.PixalspacingXEditField = uieditfield(app.MRIseriesInformationPanel, 'numeric');
+            app.PixalspacingXEditField.Position = [112 82 79 22];
+
+            % Create PixalspacingYEditFieldLabel
+            app.PixalspacingYEditFieldLabel = uilabel(app.MRIseriesInformationPanel);
+            app.PixalspacingYEditFieldLabel.HorizontalAlignment = 'right';
+            app.PixalspacingYEditFieldLabel.Position = [8 55 93 22];
+            app.PixalspacingYEditFieldLabel.Text = 'Pixal spacing Y :';
+
+            % Create PixalspacingYEditField
+            app.PixalspacingYEditField = uieditfield(app.MRIseriesInformationPanel, 'numeric');
+            app.PixalspacingYEditField.Position = [112 55 79 22];
+
+            % Create ViewEditFieldLabel
+            app.ViewEditFieldLabel = uilabel(app.MRIseriesInformationPanel);
+            app.ViewEditFieldLabel.HorizontalAlignment = 'right';
+            app.ViewEditFieldLabel.Position = [61 30 37 22];
+            app.ViewEditFieldLabel.Text = 'View :';
+
+            % Create ViewEditField
+            app.ViewEditField = uieditfield(app.MRIseriesInformationPanel, 'text');
+            app.ViewEditField.Position = [112 29 79 22];
+            app.ViewEditField.Value = ' ';
+
+            % Create MLDLabel
+            app.MLDLabel = uilabel(app.UIFigure);
+            app.MLDLabel.HorizontalAlignment = 'right';
+            app.MLDLabel.Position = [81 16 37 22];
+            app.MLDLabel.Text = 'MLD :';
+
+            % Create MLDEditField
+            app.MLDEditField = uieditfield(app.UIFigure, 'numeric');
+            app.MLDEditField.Position = [131 16 80 22];
+
+            % Show the figure after all components are created
+            app.UIFigure.Visible = 'on';
+        end
+    end
+
+    % App creation and deletion
+    methods (Access = public)
+
+        % Construct app
+        function app = HVF
+
+            % Create UIFigure and components
+            createComponents(app)
+
+            % Register the app with App Designer
+            registerApp(app, app.UIFigure)
+
+            if nargout == 0
+                clear app
+            end
+        end
+
+        % Code that executes before app deletion
+        function delete(app)
+
+            % Delete UIFigure when app is deleted
+            delete(app.UIFigure)
+        end
+    end
+end
